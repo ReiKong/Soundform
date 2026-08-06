@@ -8,7 +8,8 @@ ReccoBeats supplies audio features and recommendation candidates.
 
 ## Local development
 
-Requires Node.js 22.13 or newer.
+Requires Node.js 20.9 or newer. Node.js 22 is recommended and configured in
+`.nvmrc`.
 
 ```bash
 npm install

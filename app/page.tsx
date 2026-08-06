@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import Image from "next/image";
 
 type Album = {
   id?: string;
@@ -145,7 +146,7 @@ export default function Home() {
                 aria-label={`${album.title} by ${album.artist}`}
               >
                 <span className="cover" style={{ background: album.art }}>
-                  {album.image ? <img src={album.image} alt={`${album.title} cover`} /> : <b>{album.text.split("\n").map((line) => <i key={line}>{line}</i>)}</b>}
+                  {album.image ? <Image src={album.image} alt={`${album.title} cover`} fill sizes={`${album.size}px`} unoptimized /> : <b>{album.text.split("\n").map((line) => <i key={line}>{line}</i>)}</b>}
                   {album.similarity !== undefined && <em>{Math.round(album.similarity * 100)}% match</em>}
                 </span>
                 <span className="album-meta"><strong>{album.track}</strong><small>{album.artist}</small></span>
