@@ -111,10 +111,17 @@ export async function GET(request: Request) {
     if (recommendationResponse.ok) {
       const recommendationData = await recommendationResponse.json() as { content: { href: string }[] };
       const neighbourIds = recommendationData.content.map((track) => track.href.split("/").pop()).filter((id): id is string => Boolean(id));
-      const spotifyNeighbours = await Promise.all(neighbourIds.map(async (id) => {
-        const response = await fetch(`https://api.spotify.com/v1/tracks/${id}?market=CA`, { headers });
-        return response.ok ? await response.json() as SpotifyTrack : null;
-      }));
+      const neighboursResponse = await fetch(`https://api.spotify.com/v1/tracks?market=CA&ids=${neighbourIds.join(",")}`, { headers });
+      let spotifyNeighbours: (SpotifyTrack | null)[];
+      if (neighboursResponse.ok) {
+        const neighboursData = await neighboursResponse.json() as { tracks: (SpotifyTrack | null)[] };
+        spotifyNeighbours = neighboursData.tracks;
+      } else {
+        spotifyNeighbours = await Promise.all(neighbourIds.map(async (id) => {
+          const response = await fetch(`https://api.spotify.com/v1/tracks/${id}?market=CA`, { headers });
+          return response.ok ? await response.json() as SpotifyTrack : null;
+        }));
+      }
       tracks = [seedTrack, ...spotifyNeighbours.filter((track): track is SpotifyTrack => Boolean(track))];
     } else {
       usedRecommendationFallback = true;
@@ -122,17 +129,17 @@ export async function GET(request: Request) {
     }
 
     const artistIds = [...new Set(tracks.flatMap((track) => track.artists.map((artist) => artist.id)))];
+    const [artistResponse, featureResponse] = await Promise.all([
+      artistIds.length ? fetch(`https://api.spotify.com/v1/artists?ids=${artistIds.slice(0, 50).join(",")}`, { headers }) : null,
+      fetch(`https://api.reccobeats.com/v1/audio-features?ids=${tracks.map((track) => track.id).join(",")}`),
+    ]);
     const artistGenres = new Map<string, string[]>();
-    if (artistIds.length) {
-      const artistResponse = await fetch(`https://api.spotify.com/v1/artists?ids=${artistIds.slice(0, 50).join(",")}`, { headers });
-      if (artistResponse.ok) {
-        const artistData = await artistResponse.json() as { artists: SpotifyArtist[] };
-        for (const artist of artistData.artists) artistGenres.set(artist.id, artist.genres ?? []);
-      }
+    if (artistResponse?.ok) {
+      const artistData = await artistResponse.json() as { artists: SpotifyArtist[] };
+      for (const artist of artistData.artists) artistGenres.set(artist.id, artist.genres ?? []);
     }
     const genresFor = (track: SpotifyTrack) => [...new Set(track.artists.flatMap((artist) => artistGenres.get(artist.id) ?? []))];
 
-    const featureResponse = await fetch(`https://api.reccobeats.com/v1/audio-features?ids=${tracks.map((track) => track.id).join(",")}`);
     if (!featureResponse.ok) throw new Error(`ReccoBeats audio features returned ${featureResponse.status}.`);
     const featureData = await featureResponse.json() as { content: Features[] };
     const byId = new Map(featureData.content.map((feature) => [feature.href.split("/").pop()!, feature]));
@@ -168,7 +175,7 @@ export async function GET(request: Request) {
     return Response.json({
       seed: results[0], tracks: results, source: "ReccoBeats audio analysis",
       warning: usedRecommendationFallback ? "This seed is not in ReccoBeats’ recommendation index yet. The map compares its available audio features with related Spotify search results instead." : undefined,
-    });
+    }, { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Spotify request failed." }, { status: 500 });
   }
