@@ -14,7 +14,7 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const { tracks, loading, error, warning, discover } = useMusicDiscovery();
+  const { tracks, loading, error, warning, discover, discoverBySeedId } = useMusicDiscovery();
 
   async function search(query: string) {
     const succeeded = await discover(query);
@@ -45,6 +45,10 @@ export default function Home() {
         offset={offset}
         onOffsetChange={setOffset}
         onSelect={setSelectedIndex}
+        onExplore={(trackId) => {
+          setSelectedIndex(0);
+          void discoverBySeedId(trackId);
+        }}
         onZoomChange={setZoom}
       />
 

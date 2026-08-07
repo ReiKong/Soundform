@@ -4,6 +4,8 @@ import { mapAnalyzedTracks, mapMetadataOnly } from "@/lib/server/music/track-map
 
 const RESPONSE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
+  "Netlify-CDN-Cache-Control": "public, durable, max-age=3600, stale-while-revalidate=86400",
+  "Netlify-Vary": "query=q|seedId|preview",
 };
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const query = params.get("q")?.trim();
   const seedId = params.get("seedId")?.trim();
+  const previewOnly = params.get("preview") === "1";
 
   if (!query && !seedId) {
     return Response.json({ error: "Enter a track or artist." }, { status: 400 });
@@ -22,6 +25,14 @@ export async function GET(request: Request) {
     const searchResults = await findSeedTracks(query, seedId);
     const seedTrack = searchResults[0];
     if (!seedTrack) return Response.json({ error: "No tracks found." }, { status: 404 });
+
+    if (previewOnly) {
+      const preview = mapMetadataOnly([seedTrack])[0];
+      return Response.json({
+        seedId: seedTrack.id,
+        tracks: [{ ...preview, x: 50, y: 50 }],
+      }, { headers: RESPONSE_HEADERS });
+    }
 
     const recommendationIds = await getRecommendationIds(seedTrack.id);
     const usedRecommendationFallback = recommendationIds === null;

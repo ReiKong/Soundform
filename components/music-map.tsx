@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { FaAngleDoubleRight } from "react-icons/fa";
 import { resolveCoverCollisions } from "@/lib/cover-layout";
 import type { Album } from "@/types/music";
 
@@ -15,6 +16,7 @@ type MusicMapProps = {
   offset: Point;
   onOffsetChange: (offset: Point) => void;
   onSelect: (index: number) => void;
+  onExplore: (trackId: string) => void;
   onZoomChange: (zoom: number) => void;
 };
 
@@ -41,27 +43,28 @@ export function MusicMap({
   offset,
   onOffsetChange,
   onSelect,
+  onExplore,
   onZoomChange,
 }: MusicMapProps) {
   const [coverOffsets, setCoverOffsets] = useState<Record<number, Point>>({});
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const mapDrag = useRef<{ x: number; y: number; origin: Point } | null>(null);
   const coverDrag = useRef<{ index: number; x: number; y: number; moved: boolean } | null>(null);
-  const suppressClick = useRef(false);
   const positions = useMemo(
     () => resolveCoverCollisions(albums, selectedIndex),
     [albums, selectedIndex],
   );
 
-  function releaseCover(index: number, event: ReactPointerEvent<HTMLButtonElement>) {
-    if (coverDrag.current?.index !== index) return;
-    suppressClick.current = coverDrag.current.moved;
+  function releaseCover(index: number, event: ReactPointerEvent<HTMLDivElement>) {
+    if (coverDrag.current?.index !== index) return false;
+    const shouldSelect = !coverDrag.current.moved;
     coverDrag.current = null;
     setDraggingIndex(null);
     setCoverOffsets((current) => ({ ...current, [index]: { x: 0, y: 0 } }));
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    return shouldSelect;
   }
 
   return (
@@ -94,7 +97,7 @@ export function MusicMap({
           const position = parallaxPosition(positions[index], index, zoom);
 
           return (
-            <button
+            <div
               key={album.id ?? `${album.track}-${album.artist}`}
               className={`album ${selectedIndex === index ? "selected" : ""} ${isDragging ? "dragging" : ""}`}
               style={{
@@ -102,6 +105,7 @@ export function MusicMap({
                 top: `${position.y}%`,
                 width: album.size,
                 "--label-scale": 1 / zoom,
+                "--meta-width": `${album.size * zoom * (selectedIndex === index ? 1.33 : 1)}px`,
                 "--drag-x": `${dragOffset.x}px`,
                 "--drag-y": `${dragOffset.y}px`,
               } as CSSProperties}
@@ -119,37 +123,55 @@ export function MusicMap({
                 if (Math.hypot(x, y) > 3) activeDrag.moved = true;
                 setCoverOffsets((current) => ({ ...current, [index]: { x, y } }));
               }}
-              onPointerUp={(event) => releaseCover(index, event)}
+              onPointerUp={(event) => {
+                if (releaseCover(index, event)) onSelect(index);
+              }}
               onPointerCancel={(event) => releaseCover(index, event)}
               onDragStart={(event) => event.preventDefault()}
-              onClick={() => {
-                if (suppressClick.current) {
-                  suppressClick.current = false;
-                  return;
-                }
-                onSelect(index);
-              }}
-              aria-label={`${album.track} by ${album.artist}`}
             >
-              <span className="cover" style={{ background: album.art }}>
-                {album.image ? (
-                  <Image
-                    src={album.image}
-                    alt={`${album.title} cover`}
-                    fill
-                    sizes={`${album.size}px`}
-                    draggable={false}
-                    unoptimized
-                  />
-                ) : (
-                  <b>{album.text.split("\n").map((line) => <i key={line}>{line}</i>)}</b>
-                )}
-              </span>
+              {album.id && (
+                <button
+                  className="explore-track"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onExplore(album.id!);
+                  }}
+                  aria-label={`Find neighbors for ${album.track}`}
+                >
+                  <FaAngleDoubleRight aria-hidden="true" />
+                </button>
+              )}
+              <button
+                className="album-cover-button"
+                onClick={(event) => {
+                  // Pointer selection happens on release above; detail 0 is keyboard activation.
+                  if (event.detail === 0) onSelect(index);
+                }}
+                aria-label={`Select ${album.track} by ${album.artist}`}
+              >
+                <span className="cover" style={{ background: album.art }}>
+                  {album.image ? (
+                    <Image
+                      src={album.image}
+                      alt={`${album.title} cover`}
+                      fill
+                      sizes={`${album.size}px`}
+                      draggable={false}
+                      unoptimized
+                    />
+                  ) : (
+                    <b>{album.text.split("\n").map((line) => <i key={line}>{line}</i>)}</b>
+                  )}
+                </span>
+              </button>
               <span className="album-meta">
-                <strong>{album.track}</strong>
-                <small>{album.artist}</small>
+                <span className="album-copy">
+                  <strong>{album.track}</strong>
+                  <small>{album.artist}</small>
+                </span>
               </span>
-            </button>
+            </div>
           );
         })}
       </div>

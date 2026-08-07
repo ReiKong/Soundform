@@ -29,6 +29,7 @@ export type Album = {
 };
 
 export type DiscoveryResponse = {
+  seedId?: string;
   tracks?: Album[];
   warning?: string;
   error?: string;

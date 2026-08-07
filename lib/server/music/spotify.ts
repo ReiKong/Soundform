@@ -5,6 +5,8 @@ const MARKET = "CA";
 
 let cachedToken = "";
 let tokenExpiresAt = 0;
+const artistGenreCache = new Map<string, { genres: string[]; expiresAt: number }>();
+const ARTIST_GENRE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
@@ -53,13 +55,6 @@ export async function findSeedTracks(query?: string, seedId?: string) {
 
 export async function getTracks(ids: string[]) {
   if (!ids.length) return [];
-
-  const batchResponse = await spotifyFetch(`/tracks?market=${MARKET}&ids=${ids.join(",")}`);
-  if (batchResponse.ok) {
-    const data = (await batchResponse.json()) as { tracks: (SpotifyTrack | null)[] };
-    return data.tracks.filter((track): track is SpotifyTrack => Boolean(track));
-  }
-
   const tracks = await Promise.all(ids.map(async (id) => {
     const response = await spotifyFetch(`/tracks/${id}?market=${MARKET}`);
     return response.ok ? (await response.json()) as SpotifyTrack : null;
@@ -72,10 +67,23 @@ export async function getArtistGenres(tracks: SpotifyTrack[]) {
   const genres = new Map<string, string[]>();
   if (!artistIds.length) return genres;
 
-  const response = await spotifyFetch(`/artists?ids=${artistIds.slice(0, 50).join(",")}`);
+  const now = Date.now();
+  const missingIds: string[] = [];
+  for (const artistId of artistIds) {
+    const cached = artistGenreCache.get(artistId);
+    if (cached && cached.expiresAt > now) genres.set(artistId, cached.genres);
+    else missingIds.push(artistId);
+  }
+  if (!missingIds.length) return genres;
+
+  const response = await spotifyFetch(`/artists?ids=${missingIds.slice(0, 50).join(",")}`);
   if (!response.ok) return genres;
 
   const data = (await response.json()) as { artists: SpotifyArtist[] };
-  for (const artist of data.artists) genres.set(artist.id, artist.genres ?? []);
+  for (const artist of data.artists) {
+    const artistGenres = artist.genres ?? [];
+    genres.set(artist.id, artistGenres);
+    artistGenreCache.set(artist.id, { genres: artistGenres, expiresAt: now + ARTIST_GENRE_TTL });
+  }
   return genres;
 }
