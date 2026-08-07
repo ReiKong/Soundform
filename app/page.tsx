@@ -202,7 +202,7 @@ export default function Home() {
       {error && <div className="api-error"><strong>Couldn’t map this track</strong><span>{error}</span></div>}
       {warning && <div className="api-warning"><strong>Spotify metadata mode</strong><span>{warning}</span></div>}
       <div className="zoom-controls"><button onClick={() => setZoom((z) => Math.max(.48, z - .2))}>−</button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom((z) => Math.min(2.2, z + .2))}>+</button></div>
-      <p className="hint">drag to roam · scroll to zoom · click to listen</p>
+      {/* <p className="hint">drag to roam · scroll to zoom · click to listen</p> */}
     </main>
   );
 }
