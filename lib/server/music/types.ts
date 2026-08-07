@@ -12,6 +12,14 @@ export type SpotifyTrack = {
 
 export type SpotifyArtist = { id: string; genres: string[] };
 
+export type ReccoTrack = {
+  id: string;
+  trackTitle: string;
+  artists: { id: string; name: string; href: string }[];
+  isrc: string | null;
+  href: string;
+};
+
 export type AudioFeatures = {
   id: string;
   href: string;

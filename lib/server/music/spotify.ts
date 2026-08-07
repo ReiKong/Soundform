@@ -4,7 +4,6 @@ const API_BASE = "https://api.spotify.com/v1";
 const MARKET = "CA";
 const MAX_RATE_LIMIT_RETRIES = 2;
 const MAX_RETRY_DELAY_MS = 8_000;
-const TRACK_LOOKUP_CONCURRENCY = 3;
 
 let cachedToken = "";
 let tokenExpiresAt = 0;
@@ -56,35 +55,13 @@ async function spotifyFetch(path: string) {
   throw new Error("Spotify request failed after retrying.");
 }
 
-export async function findSeedTracks(query?: string, seedId?: string) {
-  if (seedId) {
-    const response = await spotifyFetch(`/tracks/${seedId}?market=${MARKET}`);
-    if (!response.ok) throw new Error(`Spotify track lookup returned ${response.status}.`);
-    return [(await response.json()) as SpotifyTrack];
-  }
-
+export async function findSeedTracks(query?: string) {
   const response = await spotifyFetch(
     `/search?type=track&limit=10&market=${MARKET}&q=${encodeURIComponent(query ?? "")}`,
   );
   if (!response.ok) throw new Error(`Spotify search returned ${response.status}.`);
   const data = (await response.json()) as { tracks: { items: SpotifyTrack[] } };
   return data.tracks.items;
-}
-
-export async function getTracks(ids: string[]) {
-  if (!ids.length) return [];
-  const tracks: SpotifyTrack[] = [];
-
-  for (let index = 0; index < ids.length; index += TRACK_LOOKUP_CONCURRENCY) {
-    const batch = ids.slice(index, index + TRACK_LOOKUP_CONCURRENCY);
-    const results = await Promise.all(batch.map(async (id) => {
-      const response = await spotifyFetch(`/tracks/${id}?market=${MARKET}`);
-      return response.ok ? (await response.json()) as SpotifyTrack : null;
-    }));
-    tracks.push(...results.filter((track): track is SpotifyTrack => Boolean(track)));
-  }
-
-  return tracks;
 }
 
 export async function getArtistGenres(tracks: SpotifyTrack[]) {

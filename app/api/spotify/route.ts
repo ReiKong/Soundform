@@ -1,5 +1,6 @@
-import { getAudioFeatures, getRecommendationIds } from "@/lib/server/music/reccobeats";
-import { findSeedTracks, getArtistGenres, getTracks } from "@/lib/server/music/spotify";
+import { enrichRecommendations } from "@/lib/server/music/oembed";
+import { getAudioFeatures, getRecommendations, getTracksByIds } from "@/lib/server/music/reccobeats";
+import { findSeedTracks, getArtistGenres } from "@/lib/server/music/spotify";
 import { mapAnalyzedTracks, mapMetadataOnly } from "@/lib/server/music/track-mapper";
 
 const RESPONSE_HEADERS = {
@@ -22,7 +23,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const searchResults = await findSeedTracks(query, seedId);
+    const searchResults = seedId
+      ? await enrichRecommendations(await getTracksByIds([seedId]))
+      : await findSeedTracks(query);
     const seedTrack = searchResults[0];
     if (!seedTrack) return Response.json({ error: "No tracks found." }, { status: 404 });
 
@@ -34,10 +37,10 @@ export async function GET(request: Request) {
       }, { headers: RESPONSE_HEADERS });
     }
 
-    const recommendationIds = await getRecommendationIds(seedTrack.id);
-    const usedRecommendationFallback = recommendationIds === null;
-    const tracks = recommendationIds
-      ? [seedTrack, ...await getTracks(recommendationIds)]
+    const recommendations = await getRecommendations(seedTrack.id);
+    const usedRecommendationFallback = recommendations === null;
+    const tracks = recommendations
+      ? [seedTrack, ...await enrichRecommendations(recommendations)]
       : searchResults;
 
     const [genresByArtist, features] = await Promise.all([

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MusicMap } from "@/components/music-map";
 import { SearchForm } from "@/components/search-form";
 import { useMusicDiscovery } from "@/hooks/use-music-discovery";
@@ -16,6 +16,24 @@ export default function Home() {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [reseeding, setReseeding] = useState(false);
   const { tracks, loading, error, warning, discover, discoverBySeedId } = useMusicDiscovery();
+
+  useEffect(() => {
+    if (loading && tracks.length === 1) {
+      setReseeding(true);
+      return;
+    }
+
+    if (!loading && tracks.length > 1 && reseeding) {
+      let secondFrame = 0;
+      const firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => setReseeding(false));
+      });
+      return () => {
+        cancelAnimationFrame(firstFrame);
+        cancelAnimationFrame(secondFrame);
+      };
+    }
+  }, [loading, reseeding, tracks.length]);
 
   async function search(query: string) {
     const succeeded = await discover(query);
