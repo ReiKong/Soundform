@@ -5,7 +5,10 @@ import { randomLaunchQuery } from "@/data/launch-seeds";
 import type { Album, DiscoveryResponse } from "@/types/music";
 
 async function requestDiscovery(query: string, signal: AbortSignal): Promise<DiscoveryResponse> {
-  const response = await fetch(`/api/spotify?q=${encodeURIComponent(query)}`, { signal });
+  const response = await fetch(`/api/spotify?q=${encodeURIComponent(query)}`, {
+    signal,
+    cache: "no-store",
+  });
   const data = (await response.json()) as DiscoveryResponse;
   if (!response.ok) throw new Error(data.error || "Spotify search failed.");
   return data;

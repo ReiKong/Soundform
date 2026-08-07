@@ -2,9 +2,12 @@ import { getAudioFeatures, getRecommendationIds } from "@/lib/server/music/recco
 import { findSeedTracks, getArtistGenres, getTracks } from "@/lib/server/music/spotify";
 import { mapAnalyzedTracks, mapMetadataOnly } from "@/lib/server/music/track-mapper";
 
-const CACHE_HEADERS = {
-  "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+const RESPONSE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
 };
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
       return Response.json({
         tracks: mapMetadataOnly(tracks),
         warning: "ReccoBeats has not analyzed this track yet, so these results use Spotify metadata only.",
-      }, { headers: CACHE_HEADERS });
+      }, { headers: RESPONSE_HEADERS });
     }
 
     const mappedTracks = mapAnalyzedTracks(tracks, featuresById, seedFeatures, genresByArtist);
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
       warning: usedRecommendationFallback
         ? "This seed is not in ReccoBeats’ recommendation index yet. The map compares its available audio features with related Spotify search results instead."
         : undefined,
-    }, { headers: CACHE_HEADERS });
+    }, { headers: RESPONSE_HEADERS });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Spotify request failed." },
