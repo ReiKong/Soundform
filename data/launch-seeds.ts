@@ -10,7 +10,7 @@ export const launchSeeds: LaunchSeed[] = [
   { track: "Fur", artist: "Blue Lake" },
   { track: "Des Goblin", artist: "Gurriers" },
   { track: "Real Thing", artist: "Stars" },
-  { track: "All We Ever Do Is Talk", artist: "Del Water Gap" },
+  { track: "Everest", artist: "Public Service Broadcasting" },
   { track: "The Bells", artist: "Jeff Mills" },
   { track: "bad decision!", artist: "Esha Tewari" },
   { track: "I Can't Stop (Holding On)", artist: "The Cleaners From Venus" },
