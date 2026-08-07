@@ -45,15 +45,25 @@ function similarity(a: Features, b: Features) {
 }
 
 export async function GET(request: Request) {
-  const q = new URL(request.url).searchParams.get("q")?.trim();
-  if (!q) return Response.json({ error: "Enter a track or artist." }, { status: 400 });
+  const params = new URL(request.url).searchParams;
+  const q = params.get("q")?.trim();
+  const seedId = params.get("seedId")?.trim();
+  if (!q && !seedId) return Response.json({ error: "Enter a track or artist." }, { status: 400 });
   try {
     const token = await getToken();
     const headers = { Authorization: `Bearer ${token}` };
-    const search = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&market=CA&q=${encodeURIComponent(q)}`, { headers });
-    if (!search.ok) throw new Error(`Spotify search returned ${search.status}.`);
-    const searchData = await search.json() as { tracks: { items: SpotifyTrack[] } };
-    const seedTrack = searchData.tracks.items[0];
+    let searchItems: SpotifyTrack[];
+    if (seedId) {
+      const trackResponse = await fetch(`https://api.spotify.com/v1/tracks/${seedId}?market=CA`, { headers });
+      if (!trackResponse.ok) throw new Error(`Spotify track lookup returned ${trackResponse.status}.`);
+      searchItems = [await trackResponse.json() as SpotifyTrack];
+    } else {
+      const search = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&market=CA&q=${encodeURIComponent(q!)}`, { headers });
+      if (!search.ok) throw new Error(`Spotify search returned ${search.status}.`);
+      const searchData = await search.json() as { tracks: { items: SpotifyTrack[] } };
+      searchItems = searchData.tracks.items;
+    }
+    const seedTrack = searchItems[0];
     if (!seedTrack) return Response.json({ error: "No tracks found." }, { status: 404 });
 
     const recommendationResponse = await fetch(`https://api.reccobeats.com/v1/track/recommendation?seeds=${seedTrack.id}&size=11`);
@@ -69,7 +79,7 @@ export async function GET(request: Request) {
       tracks = [seedTrack, ...spotifyNeighbours.filter((track): track is SpotifyTrack => Boolean(track))];
     } else {
       usedRecommendationFallback = true;
-      tracks = searchData.tracks.items;
+      tracks = searchItems;
     }
 
     const featureResponse = await fetch(`https://api.reccobeats.com/v1/audio-features?ids=${tracks.map((track) => track.id).join(",")}`);

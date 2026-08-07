@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Image from "next/image";
 
@@ -39,6 +39,36 @@ const albums: Album[] = [
   { title: "Slow Cinema", artist: "Mira Vale", year: "2022", tags: ["trip hop", "cinematic"], x: 31, y: 91, size: 98, art: "linear-gradient(180deg,#f4cfc1 0 34%,#ab5366 35% 43%,#482b45 44% 72%,#13131c 73%)", text: "SLOW\nCINEMA", track: "End Credits" },
   { title: "Green Language", artist: "Aster House", year: "2024", tags: ["psych folk", "experimental"], x: 55, y: 92, size: 128, art: "repeating-conic-gradient(from 20deg,#dce19b 0 12deg,#75a06b 13deg 25deg,#eedbc4 26deg 38deg)", text: "GREEN\nLANGUAGE", track: "Fern Syntax" },
 ];
+
+const launchSeeds = [
+  { track: "Trap Door", artist: "Stars" },
+  { track: "Forgetter - Sofi Tukker Remix", artist: "Mr Little Jeans SOFI TUKKER" },
+  { track: "Allez bisous", artist: "Fred Nevché" },
+  { track: "On Division St", artist: "Nation of Language" },
+  { track: "Grad Walk", artist: "Nathan Micay" },
+  { track: "bunnybunnybunny", artist: "Mietze Conte" },
+  { track: "Fur", artist: "Blue Lake" },
+  { track: "Des Goblin", artist: "Gurriers" },
+  { track: "Real Thing", artist: "Stars" },
+  { track: "All We Ever Do Is Talk", artist: "Del Water Gap" },
+  { track: "The Bells", artist: "Jeff Mills" },
+  { track: "bad decision!", artist: "Esha Tewari" },
+  { track: "I Can't Stop (Holding On)", artist: "The Cleaners From Venus" },
+  { track: "NEVER ENOUGH", artist: "Turnstile" },
+  { track: "Butterfly", artist: "Léonie Pernet" },
+  { track: "Revisit", artist: "Tofu Kingdom" },
+  { track: "Жду любви", artist: "Несогласие" },
+  { track: "A Estos Hombres Tristes", artist: "Almendra" },
+  { track: "So Easy", artist: "Clear Coast" },
+  { track: "Sunkissed", artist: "The Vaccines" },
+  { track: "Love Test", artist: "The Growlers" },
+  { track: "Beyond Love", artist: "Beach House" },
+  { track: "Glide", artist: "Møme" },
+  { track: "Fool", artist: "Bay Ledges" },
+  { track: "Come Find Me", artist: "Caribou" },
+  { track: "It's Only Music, Baby", artist: "Kid Francescoli Julia Minkin" },
+  { track: "Souvenir", artist: "León Larregui" },
+] as const;
 
 function resolveCoverCollisions(source: Album[], selectedIndex: number) {
   const canvas = { width: 1200, height: 900 };
@@ -92,6 +122,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const launched = useRef(false);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -99,6 +130,23 @@ export default function Home() {
     return items.filter((a) => `${a.title} ${a.artist} ${a.tags.join(" ")}`.toLowerCase().includes(q));
   }, [query, items]);
   const positions = useMemo(() => resolveCoverCollisions(items, selected), [items, selected]);
+
+  useEffect(() => {
+    if (launched.current) return;
+    launched.current = true;
+    const seed = launchSeeds[Math.floor(Math.random() * launchSeeds.length)];
+    const spotifyQuery = `track:${seed.track} artist:${seed.artist}`;
+    (async () => {
+      setLoading(true); setError(""); setWarning("");
+      try {
+        const response = await fetch(`/api/spotify?q=${encodeURIComponent(spotifyQuery)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load the launch track.");
+        setItems(data.tracks); setSelected(0); setPlaying(false); setWarning(data.warning || "");
+      } catch (e) { setError(e instanceof Error ? e.message : "Could not load the launch track."); }
+      finally { setLoading(false); }
+    })();
+  }, []);
 
   async function discover() {
     if (!query.trim()) return;
