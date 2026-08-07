@@ -68,20 +68,15 @@ function resolveCoverCollisions(source: Album[], selectedIndex: number) {
       const left = nodes[a], right = nodes[b];
       const dx = right.x - left.x || .01;
       const dy = right.y - left.y || .01;
-      const overlapX = Math.max(0, (left.size + right.size) / 2 - Math.abs(dx));
-      const overlapY = Math.max(0, (left.size + right.size) / 2 - Math.abs(dy));
-      const maxArea = .15 * Math.min(left.size ** 2, right.size ** 2);
-      if (overlapX * overlapY <= maxArea) continue;
+      const distance = Math.hypot(dx, dy);
+      const minimumDistance = (left.size + right.size) / 2 + Math.min(left.size, right.size) * .7;
+      if (distance >= minimumDistance) continue;
 
-      const pushX = overlapX - maxArea / overlapY;
-      const pushY = overlapY - maxArea / overlapX;
-      if (pushX < pushY) {
-        const push = pushX / 2 + .5, direction = Math.sign(dx);
-        left.x -= push * direction; right.x += push * direction;
-      } else {
-        const push = pushY / 2 + .5, direction = Math.sign(dy);
-        left.y -= push * direction; right.y += push * direction;
-      }
+      const push = (minimumDistance - distance) / 2 + .5;
+      const directionX = dx / distance;
+      const directionY = dy / distance;
+      left.x -= push * directionX; left.y -= push * directionY;
+      right.x += push * directionX; right.y += push * directionY;
       moved = true;
     }
     for (const node of nodes) {
@@ -105,7 +100,10 @@ export default function Home() {
   const [warning, setWarning] = useState("");
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [albumOffsets, setAlbumOffsets] = useState<Record<number, { x: number; y: number }>>({});
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const albumDrag = useRef<{ index: number; x: number; y: number; moved: boolean } | null>(null);
+  const suppressAlbumClick = useRef(false);
   const launched = useRef(false);
 
   const matches = useMemo(() => {
@@ -145,8 +143,20 @@ export default function Home() {
   }
 
   function focusAlbum(index: number) {
+    if (suppressAlbumClick.current) {
+      suppressAlbumClick.current = false;
+      return;
+    }
     setSelected(index);
     setPlaying(true);
+  }
+
+  function releaseAlbum(index: number, pointerId: number, element: HTMLButtonElement) {
+    if (albumDrag.current?.index !== index) return;
+    suppressAlbumClick.current = albumDrag.current.moved;
+    albumDrag.current = null;
+    setAlbumOffsets((current) => ({ ...current, [index]: { x: 0, y: 0 } }));
+    if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
   }
 
   return (
@@ -169,16 +179,34 @@ export default function Home() {
         <div className="world" style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}>
           {items.map((album, index) => {
             const visible = matches.includes(album);
+            const albumOffset = albumOffsets[index] ?? { x: 0, y: 0 };
+            const isDragging = albumDrag.current?.index === index;
             return (
               <button
                 key={album.title}
-                className={`album ${selected === index ? "selected" : ""} ${visible ? "" : "muted"}`}
-                style={{ left: `${positions[index].x}%`, top: `${positions[index].y}%`, width: album.size, "--label-scale": 1 / zoom } as CSSProperties}
+                className={`album ${selected === index ? "selected" : ""} ${visible ? "" : "muted"} ${isDragging ? "dragging" : ""}`}
+                style={{ left: `${positions[index].x}%`, top: `${positions[index].y}%`, width: album.size, "--label-scale": 1 / zoom, "--drag-x": `${albumOffset.x}px`, "--drag-y": `${albumOffset.y}px` } as CSSProperties}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  albumDrag.current = { index, x: e.clientX, y: e.clientY, moved: false };
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}
+                onPointerMove={(e) => {
+                  const active = albumDrag.current;
+                  if (!active || active.index !== index) return;
+                  const x = (e.clientX - active.x) / zoom;
+                  const y = (e.clientY - active.y) / zoom;
+                  if (Math.hypot(x, y) > 3) active.moved = true;
+                  setAlbumOffsets((current) => ({ ...current, [index]: { x, y } }));
+                }}
+                onPointerUp={(e) => releaseAlbum(index, e.pointerId, e.currentTarget)}
+                onPointerCancel={(e) => releaseAlbum(index, e.pointerId, e.currentTarget)}
+                onDragStart={(e) => e.preventDefault()}
                 onClick={() => focusAlbum(index)}
                 aria-label={`${album.title} by ${album.artist}`}
               >
                 <span className="cover" style={{ background: album.art }}>
-                  {album.image ? <Image src={album.image} alt={`${album.title} cover`} fill sizes={`${album.size}px`} unoptimized /> : <b>{album.text.split("\n").map((line) => <i key={line}>{line}</i>)}</b>}
+                  {album.image ? <Image src={album.image} alt={`${album.title} cover`} fill sizes={`${album.size}px`} draggable={false} unoptimized /> : <b>{album.text.split("\n").map((line) => <i key={line}>{line}</i>)}</b>}
                   {/* {album.similarity !== undefined && <em>{Math.round(album.similarity * 100)}% match</em>} */}
                 </span>
                 <span className="album-meta"><strong>{album.track}</strong><small>{album.artist}</small></span>
