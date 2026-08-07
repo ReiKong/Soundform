@@ -1,8 +1,8 @@
 import type { AudioFeatures } from "./types";
 
 const AUDIO_WEIGHTS = [1.4, 1.2, 1.1, 1, 0.8, 0.45, 0.35, 0.65, 0.7];
-const AUDIO_SCORE_WEIGHT = 0.7;
-const GENRE_SCORE_WEIGHT = 0.3;
+const AUDIO_SCORE_WEIGHT = 0.45;
+const GENRE_SCORE_WEIGHT = 0.55;
 
 const GENRE_FAMILIES: Record<string, string[]> = {
   rock: ["rock", "indie", "punk", "post-punk", "new wave", "shoegaze", "psychedelic", "garage"],
@@ -58,7 +58,17 @@ function genreSimilarity(seedGenres: string[], candidateGenres: string[]) {
   const candidateTerms = genreTerms(candidateGenres);
   let sharedTerms = 0;
   for (const term of seedTerms) if (candidateTerms.has(term)) sharedTerms++;
-  return sharedTerms / new Set([...seedTerms, ...candidateTerms]).size;
+  const overlap = sharedTerms / new Set([...seedTerms, ...candidateTerms]).size;
+  const sharesExactGenre = seedGenres.some((genre) =>
+    candidateGenres.some((candidate) => candidate.toLowerCase() === genre.toLowerCase()),
+  );
+  const sharesGenreFamily = [...seedTerms].some((term) =>
+    term.startsWith("family:") && candidateTerms.has(term),
+  );
+
+  if (sharesExactGenre) return Math.max(overlap, 0.85);
+  if (sharesGenreFamily) return Math.max(overlap, 0.65);
+  return overlap;
 }
 
 export function calculateSimilarity(

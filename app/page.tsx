@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MusicMap } from "@/components/music-map";
 import { SearchForm } from "@/components/search-form";
 import { useMusicDiscovery } from "@/hooks/use-music-discovery";
@@ -15,25 +15,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [reseeding, setReseeding] = useState(false);
-  const { tracks, loading, error, warning, discover, discoverBySeedId } = useMusicDiscovery();
-
-  useEffect(() => {
-    if (loading && tracks.length === 1) {
-      setReseeding(true);
-      return;
-    }
-
-    if (!loading && tracks.length > 1 && reseeding) {
-      let secondFrame = 0;
-      const firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => setReseeding(false));
-      });
-      return () => {
-        cancelAnimationFrame(firstFrame);
-        cancelAnimationFrame(secondFrame);
-      };
-    }
-  }, [loading, reseeding, tracks.length]);
+  const { tracks, loading, previewing, error, warning, discover, discoverBySeedId } = useMusicDiscovery();
 
   async function search(query: string) {
     const succeeded = await discover(query);
@@ -60,7 +42,7 @@ export default function Home() {
       <MusicMap
         albums={tracks}
         selectedIndex={selectedIndex}
-        reseeding={reseeding}
+        reseeding={reseeding || previewing}
         zoom={zoom}
         offset={offset}
         onOffsetChange={setOffset}

@@ -14,6 +14,7 @@ async function requestDiscovery(params: URLSearchParams, signal: AbortSignal): P
 export function useMusicDiscovery() {
   const [tracks, setTracks] = useState<Album[]>([]);
   const [loading, setLoading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const launched = useRef(false);
@@ -24,6 +25,7 @@ export function useMusicDiscovery() {
     const controller = new AbortController();
     activeRequest.current = controller;
     setLoading(true);
+    setPreviewing(false);
     setError("");
     setWarning("");
 
@@ -45,6 +47,7 @@ export function useMusicDiscovery() {
       const preview = await requestDiscovery(previewParams, controller.signal);
       if (activeRequest.current !== controller) return false;
       setTracks(preview.tracks ?? []);
+      setPreviewing(true);
 
       if (!preview.seedId) throw new Error("Spotify did not return a track ID.");
       const fullParams = new URLSearchParams({ seedId: preview.seedId });
@@ -52,9 +55,12 @@ export function useMusicDiscovery() {
       if (activeRequest.current !== controller) return false;
       setTracks(data.tracks ?? []);
       setWarning(data.warning ?? "");
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      if (activeRequest.current === controller) setPreviewing(false);
       return true;
     } catch (reason) {
       if (controller.signal.aborted) return false;
+      setPreviewing(false);
       setError(reason instanceof Error ? reason.message : fallbackMessage);
       return false;
     } finally {
@@ -86,5 +92,5 @@ export function useMusicDiscovery() {
     return () => activeRequest.current?.abort();
   }, [discover]);
 
-  return { tracks, loading, error, warning, discover, discoverBySeedId };
+  return { tracks, loading, previewing, error, warning, discover, discoverBySeedId };
 }
