@@ -2,6 +2,9 @@ import type { SpotifyArtist, SpotifyTrack } from "./types";
 
 const API_BASE = "https://api.spotify.com/v1";
 const MARKET = "CA";
+const MAX_RATE_LIMIT_RETRIES = 2;
+const MAX_RETRY_DELAY_MS = 8_000;
+const TRACK_LOOKUP_CONCURRENCY = 3;
 
 let cachedToken = "";
 let tokenExpiresAt = 0;
@@ -33,9 +36,24 @@ async function getAccessToken() {
   return cachedToken;
 }
 
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function spotifyFetch(path: string) {
-  const token = await getAccessToken();
-  return fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+    const token = await getAccessToken();
+    const response = await fetch(`${API_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.status !== 429 || attempt === MAX_RATE_LIMIT_RETRIES) return response;
+
+    const retryAfterSeconds = Number(response.headers.get("retry-after") ?? 1);
+    const delay = Math.min(MAX_RETRY_DELAY_MS, Math.max(1_000, retryAfterSeconds * 1_000));
+    await wait(delay);
+  }
+
+  throw new Error("Spotify request failed after retrying.");
 }
 
 export async function findSeedTracks(query?: string, seedId?: string) {
@@ -55,11 +73,18 @@ export async function findSeedTracks(query?: string, seedId?: string) {
 
 export async function getTracks(ids: string[]) {
   if (!ids.length) return [];
-  const tracks = await Promise.all(ids.map(async (id) => {
-    const response = await spotifyFetch(`/tracks/${id}?market=${MARKET}`);
-    return response.ok ? (await response.json()) as SpotifyTrack : null;
-  }));
-  return tracks.filter((track): track is SpotifyTrack => Boolean(track));
+  const tracks: SpotifyTrack[] = [];
+
+  for (let index = 0; index < ids.length; index += TRACK_LOOKUP_CONCURRENCY) {
+    const batch = ids.slice(index, index + TRACK_LOOKUP_CONCURRENCY);
+    const results = await Promise.all(batch.map(async (id) => {
+      const response = await spotifyFetch(`/tracks/${id}?market=${MARKET}`);
+      return response.ok ? (await response.json()) as SpotifyTrack : null;
+    }));
+    tracks.push(...results.filter((track): track is SpotifyTrack => Boolean(track)));
+  }
+
+  return tracks;
 }
 
 export async function getArtistGenres(tracks: SpotifyTrack[]) {

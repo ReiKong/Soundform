@@ -8,11 +8,24 @@ const LAYOUT_PASSES = 48;
 export type CoverPosition = { x: number; y: number };
 
 export function resolveCoverCollisions(albums: Album[], selectedIndex: number): CoverPosition[] {
-  const nodes = albums.map((album, index) => ({
-    x: (album.x / 100) * CANVAS.width,
-    y: (album.y / 100) * CANVAS.height,
-    size: album.size * (index === selectedIndex ? SELECTED_SCALE : 1),
-  }));
+  if (!albums.length) return [];
+  selectedIndex = Math.min(Math.max(selectedIndex, 0), albums.length - 1);
+  let neighborIndex = 0;
+  const neighborCount = Math.max(1, albums.length - 1);
+  const nodes = albums.map((album, index) => {
+    if (index === selectedIndex) {
+      return { x: CANVAS.width / 2, y: CANVAS.height / 2, size: album.size * SELECTED_SCALE };
+    }
+
+    const angle = (neighborIndex / neighborCount) * Math.PI * 2 - Math.PI / 2;
+    const radius = 230 + (neighborIndex % 2) * 105;
+    neighborIndex++;
+    return {
+      x: CANVAS.width / 2 + Math.cos(angle) * radius,
+      y: CANVAS.height / 2 + Math.sin(angle) * radius,
+      size: album.size,
+    };
+  });
 
   for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
     let moved = false;
@@ -32,10 +45,18 @@ export function resolveCoverCollisions(albums: Album[], selectedIndex: number): 
         const push = (minimumDistance - distance) / 2 + 0.5;
         const directionX = dx / distance;
         const directionY = dy / distance;
-        left.x -= push * directionX;
-        left.y -= push * directionY;
-        right.x += push * directionX;
-        right.y += push * directionY;
+        if (leftIndex === selectedIndex) {
+          right.x += push * 2 * directionX;
+          right.y += push * 2 * directionY;
+        } else if (rightIndex === selectedIndex) {
+          left.x -= push * 2 * directionX;
+          left.y -= push * 2 * directionY;
+        } else {
+          left.x -= push * directionX;
+          left.y -= push * directionY;
+          right.x += push * directionX;
+          right.y += push * directionY;
+        }
         moved = true;
       }
     }
@@ -45,6 +66,8 @@ export function resolveCoverCollisions(albums: Album[], selectedIndex: number): 
       node.x = Math.min(CANVAS.width - edge, Math.max(edge, node.x));
       node.y = Math.min(CANVAS.height - edge, Math.max(edge, node.y));
     }
+    nodes[selectedIndex].x = CANVAS.width / 2;
+    nodes[selectedIndex].y = CANVAS.height / 2;
 
     if (!moved) break;
   }

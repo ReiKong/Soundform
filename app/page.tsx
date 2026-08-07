@@ -14,6 +14,7 @@ export default function Home() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [reseeding, setReseeding] = useState(false);
   const { tracks, loading, error, warning, discover, discoverBySeedId } = useMusicDiscovery();
 
   async function search(query: string) {
@@ -41,13 +42,18 @@ export default function Home() {
       <MusicMap
         albums={tracks}
         selectedIndex={selectedIndex}
+        reseeding={reseeding}
         zoom={zoom}
         offset={offset}
         onOffsetChange={setOffset}
         onSelect={setSelectedIndex}
-        onExplore={(trackId) => {
-          setSelectedIndex(0);
-          void discoverBySeedId(trackId);
+        onExplore={async (trackId, index) => {
+          setSelectedIndex(index);
+          setReseeding(true);
+          await new Promise((resolve) => window.setTimeout(resolve, 420));
+          const succeeded = await discoverBySeedId(trackId);
+          if (succeeded) setSelectedIndex(0);
+          requestAnimationFrame(() => requestAnimationFrame(() => setReseeding(false)));
         }}
         onZoomChange={setZoom}
       />

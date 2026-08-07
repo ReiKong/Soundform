@@ -12,11 +12,12 @@ type Point = { x: number; y: number };
 type MusicMapProps = {
   albums: Album[];
   selectedIndex: number;
+  reseeding: boolean;
   zoom: number;
   offset: Point;
   onOffsetChange: (offset: Point) => void;
   onSelect: (index: number) => void;
-  onExplore: (trackId: string) => void;
+  onExplore: (trackId: string, index: number) => void;
   onZoomChange: (zoom: number) => void;
 };
 
@@ -39,6 +40,7 @@ function parallaxPosition(position: Point, index: number, zoom: number) {
 export function MusicMap({
   albums,
   selectedIndex,
+  reseeding,
   zoom,
   offset,
   onOffsetChange,
@@ -69,7 +71,7 @@ export function MusicMap({
 
   return (
     <section
-      className="map"
+      className={`map ${reseeding ? "reseeding" : ""}`}
       onWheel={(event) => {
         event.preventDefault();
         onZoomChange(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom - event.deltaY * 0.00135)));
@@ -135,7 +137,7 @@ export function MusicMap({
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.stopPropagation();
-                    onExplore(album.id!);
+                    onExplore(album.id!, index);
                   }}
                   aria-label={`Find neighbors for ${album.track}`}
                 >
